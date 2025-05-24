@@ -14,14 +14,14 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server will start on `http://localhost:5000`
+The server will start on `http://localhost:5001`
 
 ## Usage
 
 Make a GET request to the `/transcribe` endpoint with a `videoId` query parameter:
 
 ```
-GET http://localhost:5000/transcribe?videoId=YOUR_VIDEO_ID
+GET http://localhost:5001/transcribe?videoId=YOUR_VIDEO_ID
 ```
 
 Example response:
@@ -37,3 +37,11 @@ Example response:
 - 400 Bad Request: If videoId is missing or transcripts are disabled
 - 404 Not Found: If no transcript is available for the video
 - 500 Internal Server Error: For other unexpected errors
+
+## API Documentation
+
+Swagger UI is available at:
+
+```
+http://localhost:5001/apidocs/
+```
