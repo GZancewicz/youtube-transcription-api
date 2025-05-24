@@ -2,4 +2,4 @@ flask==3.0.2
 youtube-transcript-api==0.6.2
 python-dotenv==1.0.1
 gunicorn
-flasgger 
+flasgger==0.9.7.1 
