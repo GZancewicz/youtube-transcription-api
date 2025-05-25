@@ -3,3 +3,4 @@ flasgger
 youtube-transcript-api
 requests
 python-dotenv
+gunicorn
