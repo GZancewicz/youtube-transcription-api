@@ -67,6 +67,68 @@ def transcribe_video():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/debug/proxy', methods=['GET'])
+def debug_proxy():
+    """
+    Get current proxy configuration
+    ---
+    responses:
+      200:
+        description: Proxy configuration
+        schema:
+          type: object
+          properties:
+            proxies:
+              type: object
+      500:
+        description: Internal server error
+    """
+    try:
+        proxies = get_proxies()
+        return jsonify({'proxies': proxies})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/debug/raw_transcript', methods=['GET'])
+def debug_raw_transcript():
+    """
+    Get raw transcript from YouTubeTranscriptApi.get_transcript (no proxy logic)
+    ---
+    parameters:
+      - name: videoId
+        in: query
+        type: string
+        required: true
+        description: The YouTube video ID
+    responses:
+      200:
+        description: Raw transcript
+        schema:
+          type: object
+          properties:
+            videoId:
+              type: string
+            raw_transcript:
+              type: array
+              items:
+                type: object
+      400:
+        description: videoId parameter is required
+      500:
+        description: Internal server error
+    """
+    video_id = request.args.get('videoId')
+    if not video_id:
+        return jsonify({'error': 'videoId parameter is required'}), 400
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        return jsonify({'videoId': video_id, 'raw_transcript': transcript})
+    except Exception as e:
+        import traceback
+        print('Exception in raw_transcript:', e)
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5001))
     app.run(host='0.0.0.0', port=port) 
