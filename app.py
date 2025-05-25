@@ -1,3 +1,9 @@
+import ssl
+import urllib3
+import requests
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+ssl._create_default_https_context = ssl._create_unverified_context
+
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, CouldNotRetrieveTranscript
@@ -5,6 +11,13 @@ from flasgger import Swagger
 
 app = Flask(__name__)
 swagger = Swagger(app)
+
+# Monkey-patch requests to always skip SSL verification
+old_request = requests.Session.request
+def new_request(self, *args, **kwargs):
+    kwargs['verify'] = False
+    return old_request(self, *args, **kwargs)
+requests.Session.request = new_request
 
 @app.route('/')
 def index():
