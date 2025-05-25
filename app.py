@@ -1,13 +1,13 @@
 # === SSL/Proxy Workarounds ===
 # Default: Render/proxy deployment (these lines are active)
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context  # For proxy/Render deployment
+# import ssl
+# ssl._create_default_https_context = ssl._create_unverified_context  # For proxy/Render deployment
 
 # For local secure deployment, comment out the two lines above.
 
 import urllib3
 import requests
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -19,11 +19,11 @@ swagger = Swagger(app)
 
 # Monkey-patch requests to always skip SSL verification (for proxy/Render deployment only)
 # Default: Render/proxy deployment (this block is active)
-old_request = requests.Session.request
-def new_request(self, *args, **kwargs):
-    kwargs['verify'] = False
-    return old_request(self, *args, **kwargs)
-requests.Session.request = new_request
+# old_request = requests.Session.request
+# def new_request(self, *args, **kwargs):
+#     kwargs['verify'] = False
+#     return old_request(self, *args, **kwargs)
+# requests.Session.request = new_request
 
 # For local secure deployment, comment out the monkey-patch block above.
 
