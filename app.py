@@ -1,31 +1,30 @@
-# === SSL/Proxy Workarounds ===
-# Default: Render/proxy deployment (these lines are active)
-# import ssl
-# ssl._create_default_https_context = ssl._create_unverified_context  # For proxy/Render deployment
-
-# For local secure deployment, comment out the two lines above.
+# Flask app for YouTube transcript API with optional Webshare proxy support
 
 import urllib3
 import requests
+import os
+from dotenv import load_dotenv
+# If you need to disable SSL warnings (not recommended for production), uncomment below:
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.proxies import WebshareProxyConfig
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, CouldNotRetrieveTranscript
 from flasgger import Swagger
 
 app = Flask(__name__)
 swagger = Swagger(app)
 
-# Monkey-patch requests to always skip SSL verification (for proxy/Render deployment only)
-# Default: Render/proxy deployment (this block is active)
-# old_request = requests.Session.request
-# def new_request(self, *args, **kwargs):
-#     kwargs['verify'] = False
-#     return old_request(self, *args, **kwargs)
-# requests.Session.request = new_request
+load_dotenv()
 
-# For local secure deployment, comment out the monkey-patch block above.
+# Configure YouTubeTranscriptApi to use Webshare proxy (edit credentials as needed)
+ytt_api = YouTubeTranscriptApi(
+    proxy_config=WebshareProxyConfig(
+        proxy_username=os.environ.get("PROXY_USERNAME"),
+        proxy_password=os.environ.get("PROXY_PASSWORD"),
+    )
+)
 
 @app.route('/')
 def index():
@@ -63,7 +62,7 @@ def transcribe_video():
     if not video_id:
         return jsonify({'error': 'videoId parameter is required'}), 400
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = ytt_api.get_transcript(video_id)
         if not transcript or not isinstance(transcript, list):
             return jsonify({'error': 'Transcript is empty or invalid for this video.'}), 404
         full_text = ' '.join([entry.get('text', '') for entry in transcript if 'text' in entry])
