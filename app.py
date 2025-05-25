@@ -4,13 +4,12 @@ import urllib3
 import requests
 import os
 from dotenv import load_dotenv
+import random
 # If you need to disable SSL warnings (not recommended for production), uncomment below:
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.proxies import WebshareProxyConfig
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, CouldNotRetrieveTranscript
 from flasgger import Swagger
 
 app = Flask(__name__)
@@ -18,13 +17,38 @@ swagger = Swagger(app)
 
 load_dotenv()
 
-# Configure YouTubeTranscriptApi to use Webshare proxy (edit credentials as needed)
-ytt_api = YouTubeTranscriptApi(
-    proxy_config=WebshareProxyConfig(
-        proxy_username=os.environ.get("PROXY_USERNAME"),
-        proxy_password=os.environ.get("PROXY_PASSWORD"),
-    )
-)
+def get_all_proxies():
+    with open('proxies.txt', 'r') as f:
+        return [line.strip() for line in f if line.strip()]
+
+def get_random_proxy_url(proxies):
+    ip, port, user, pw = random.choice(proxies).split(':')
+    return f"http://{user}:{pw}@{ip}:{port}"
+
+def try_request_with_proxies(url, max_attempts=10):
+    proxies = get_all_proxies()
+    tried = set()
+    last_error = None
+    last_proxy = None
+    for _ in range(min(max_attempts, len(proxies))):
+        proxy_url = get_random_proxy_url(proxies)
+        if proxy_url in tried:
+            continue
+        tried.add(proxy_url)
+        try:
+            r = requests.get(url, proxies={"http": proxy_url, "https": proxy_url}, timeout=2)
+            return {"status": r.status_code, "body": r.text[:200], "proxy": proxy_url}
+        except Exception as e:
+            last_error = str(e)
+            last_proxy = proxy_url
+    return {"error": last_error or "No working proxies found.", "proxy": last_proxy}, 500
+
+def try_request_direct(url):
+    try:
+        r = requests.get(url, timeout=5)
+        return {"status": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 @app.route('/')
 def index():
@@ -62,21 +86,43 @@ def transcribe_video():
     if not video_id:
         return jsonify({'error': 'videoId parameter is required'}), 400
     try:
-        transcript = ytt_api.get_transcript(video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
         if not transcript or not isinstance(transcript, list):
             return jsonify({'error': 'Transcript is empty or invalid for this video.'}), 404
         full_text = ' '.join([entry.get('text', '') for entry in transcript if 'text' in entry])
         if not full_text.strip():
             return jsonify({'error': 'Transcript is empty for this video.'}), 404
         return jsonify({'videoId': video_id, 'transcript': full_text})
-    except TranscriptsDisabled:
-        return jsonify({'error': 'Transcripts are disabled for this video'}), 400
-    except NoTranscriptFound:
-        return jsonify({'error': 'No transcript found for this video'}), 404
-    except CouldNotRetrieveTranscript:
-        return jsonify({'error': 'Could not retrieve transcript. YouTube may be blocking requests or the video is unavailable.'}), 500
     except Exception as e:
+        import traceback
+        print('Exception in get_transcript:', e)
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/debug-proxy')
+def debug_proxy():
+    """
+    Test direct connectivity to YouTube
+    ---
+    responses:
+      200:
+        description: Direct connection is working
+        schema:
+          type: object
+          properties:
+            status:
+              type: integer
+            body:
+              type: string
+      500:
+        description: Direct connection failed or error occurred
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+    """
+    return try_request_direct("https://www.youtube.com")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001) 
