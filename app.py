@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
 from flasgger import Swagger
+from webshare import ytt_api
+import logging
+import time
 
 app = Flask(__name__)
 swagger = Swagger(app)
@@ -102,6 +105,61 @@ def debug_raw_transcript():
     except Exception as e:
         import traceback
         print('Exception in raw_transcript:', e)
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/transcribe/proxy', methods=['GET'])
+def transcribe_video_proxy():
+    """
+    Get YouTube video transcript using proxy
+    ---
+    parameters:
+      - name: videoId
+        in: query
+        type: string
+        required: true
+        description: The YouTube video ID
+    responses:
+      200:
+        description: Transcript found
+        schema:
+          type: object
+          properties:
+            videoId:
+              type: string
+            transcript:
+              type: string
+      400:
+        description: Bad request or transcripts disabled
+      404:
+        description: No transcript found
+      500:
+        description: Internal server error
+    """
+    video_id = request.args.get('videoId')
+    if not video_id:
+        return jsonify({'error': 'videoId parameter is required'}), 400
+    try:
+        start_fetch = time.time()
+        transcript = ytt_api.fetch(video_id)
+        end_fetch = time.time()
+        fetch_time = end_fetch - start_fetch
+        logging.info(f"ytt_api.fetch took {fetch_time:.4f} seconds")
+        if transcript is not None:
+            logging.info(f"Number of transcript snippets: {len(transcript)}")
+        if not transcript:
+            return jsonify({'error': 'Transcript is empty or invalid for this video.'}), 404
+
+        # Join text fragments and clean up spaces using .text attribute
+        full_text = ' '.join(snippet.text.strip() for snippet in transcript)
+        full_text = ' '.join(full_text.split())
+
+        if not full_text.strip():
+            return jsonify({'error': 'Transcript is empty for this video.'}), 404
+        return jsonify({'videoId': video_id, 'transcript': full_text})
+    except Exception as e:
+        import traceback
+        print('Exception in get_transcript:', e)
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
