@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from youtube_transcript_api import YouTubeTranscriptApi
 from flasgger import Swagger
-from helpers import get_proxies
 
 app = Flask(__name__)
 swagger = Swagger(app)
@@ -48,16 +47,15 @@ def transcribe_video():
     if not video_id:
         return jsonify({'error': 'videoId parameter is required'}), 400
     try:
-        proxies = get_proxies()
-        # Set proxies globally for the API
-        if hasattr(YouTubeTranscriptApi, 'set_proxy'):
-            YouTubeTranscriptApi.set_proxy(proxies)
-        elif hasattr(YouTubeTranscriptApi, 'set_proxies'):
-            YouTubeTranscriptApi.set_proxies(proxies)
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         if not transcript or not isinstance(transcript, list):
             return jsonify({'error': 'Transcript is empty or invalid for this video.'}), 404
-        full_text = ' '.join([entry.get('text', '') for entry in transcript if 'text' in entry])
+        
+        # Join text fragments and clean up spaces
+        full_text = ' '.join(entry.get('text', '').strip() for entry in transcript if 'text' in entry)
+        # Remove multiple spaces
+        full_text = ' '.join(full_text.split())
+        
         if not full_text.strip():
             return jsonify({'error': 'Transcript is empty for this video.'}), 404
         return jsonify({'videoId': video_id, 'transcript': full_text})
@@ -67,32 +65,10 @@ def transcribe_video():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/debug/proxy', methods=['GET'])
-def debug_proxy():
-    """
-    Get current proxy configuration
-    ---
-    responses:
-      200:
-        description: Proxy configuration
-        schema:
-          type: object
-          properties:
-            proxies:
-              type: object
-      500:
-        description: Internal server error
-    """
-    try:
-        proxies = get_proxies()
-        return jsonify({'proxies': proxies})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/debug/raw_transcript', methods=['GET'])
 def debug_raw_transcript():
     """
-    Get raw transcript from YouTubeTranscriptApi.get_transcript (no proxy logic)
+    Get raw transcript from YouTubeTranscriptApi.get_transcript
     ---
     parameters:
       - name: videoId
